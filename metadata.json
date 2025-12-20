@@ -1,0 +1,5 @@
+{
+  "name": "EduPresença - Gestor de Chamada Escolar",
+  "description": "Um sistema completo para gestão de alunos, turmas e controle de frequência escolar com relatórios automatizados de assiduidade.",
+  "requestFramePermissions": []
+}
