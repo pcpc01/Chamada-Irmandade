@@ -90,6 +90,7 @@ const App: React.FC = () => {
       case 'attendance':
         return <AttendanceTaker
           classes={classes}
+          setClasses={setClasses}
           students={students}
           records={attendanceRecords}
           setRecords={setAttendanceRecords}

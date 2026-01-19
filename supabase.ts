@@ -23,7 +23,8 @@ export const db = {
                 phone: s.phone,
                 status: s.status || 'cursando',
                 enrolledClassIds: s.enrolled_class_ids || [],
-                observations: s.observations || ''
+                observations: s.observations || '',
+                registrationDate: s.registration_date
             })) as Student[];
         },
         save: async (student: Student) => {
@@ -33,7 +34,8 @@ export const db = {
                 phone: student.phone,
                 status: student.status,
                 enrolled_class_ids: student.enrolledClassIds,
-                observations: student.observations
+                observations: student.observations,
+                registration_date: student.registrationDate
             };
             const { data, error } = await supabase.from('students').upsert(payload).select();
             if (error) throw error;
@@ -44,7 +46,8 @@ export const db = {
                 phone: s.phone,
                 status: s.status,
                 enrolledClassIds: s.enrolled_class_ids,
-                observations: s.observations
+                observations: s.observations,
+                registrationDate: s.registration_date
             } as Student;
         },
         delete: async (id: string) => {
@@ -67,7 +70,9 @@ export const db = {
                 position: c.position,
                 semester: c.semester || '1º Semestre',
                 year: c.year || new Date().getFullYear(),
-                archived: !!c.archived
+                archived: !!c.archived,
+                startDate: c.start_date,
+                endDate: c.end_date
             })) as Class[];
         },
         save: async (cls: Class) => {
@@ -81,7 +86,9 @@ export const db = {
                 position: cls.position,
                 semester: cls.semester,
                 year: cls.year,
-                archived: !!cls.archived
+                archived: !!cls.archived,
+                start_date: cls.startDate,
+                end_date: cls.endDate
             };
             const { data, error } = await supabase.from('classes').upsert(payload).select();
             if (error) throw error;
@@ -96,7 +103,9 @@ export const db = {
                 position: saved.position,
                 semester: saved.semester,
                 year: saved.year,
-                archived: !!saved.archived
+                archived: !!saved.archived,
+                startDate: saved.start_date,
+                endDate: saved.end_date
             } as Class;
         },
         saveAll: async (classesToSave: Class[]) => {
@@ -110,7 +119,9 @@ export const db = {
                 position: cls.position,
                 semester: cls.semester,
                 year: cls.year,
-                archived: !!cls.archived
+                archived: !!cls.archived,
+                start_date: cls.startDate,
+                end_date: cls.endDate
             }));
             const { data, error } = await supabase.from('classes').upsert(payloads).select();
             if (error) throw error;
@@ -124,7 +135,9 @@ export const db = {
                 position: saved.position,
                 semester: saved.semester,
                 year: saved.year,
-                archived: !!saved.archived
+                archived: !!saved.archived,
+                startDate: saved.start_date,
+                endDate: saved.end_date
             })) as Class[];
         },
         delete: async (id: string) => {

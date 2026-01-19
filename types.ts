@@ -8,6 +8,7 @@ export interface Student {
   status: StudentStatus;
   enrolledClassIds: string[]; // Histórico de turmas onde já foi matriculado
   observations?: string;
+  registrationDate?: string; // ISO String (YYYY-MM-DD)
 }
 
 export interface Class {
@@ -21,6 +22,8 @@ export interface Class {
   semester: string; // "1º Semestre" ou "2º Semestre"
   year: number;
   archived?: boolean;
+  startDate?: string; // ISO String (YYYY-MM-DD)
+  endDate?: string;   // ISO String (YYYY-MM-DD)
 }
 
 export type AttendanceStatus = 'presente' | 'ausente' | 'justificado';
