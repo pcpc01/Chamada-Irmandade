@@ -8,6 +8,7 @@ interface AttendanceTakerProps {
   students: Student[];
   records: AttendanceRecord[];
   setRecords: React.Dispatch<React.SetStateAction<AttendanceRecord[]>>;
+  setClasses: React.Dispatch<React.SetStateAction<Class[]>>;
 }
 
 const dayNameMap: Record<number, string> = {
@@ -22,14 +23,24 @@ const dayIndices: Record<string, number> = {
   'Domingo': 0, 'Segunda': 1, 'Terça': 2, 'Quarta': 3, 'Quinta': 4, 'Sexta': 5, 'Sábado': 6
 };
 
-// Função para gerar todas as datas de aula de uma turma no semestre
-const generateSemesterDates = (year: number, semester: string, classDays: string[]) => {
-  const dates: { date: string, dayName: string, short: string }[] = [];
-  const startMonth = semester === '1º Semestre' ? 1 : 7; // Feb (1) ou Aug (7) - 0 indexed
-  const endMonth = semester === '1º Semestre' ? 5 : 11; // Jun (5) ou Dec (11)
+const daysOfWeek = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
-  const startDate = new Date(year, startMonth, 1);
-  const endDate = new Date(year, endMonth, 31);
+// Função para gerar todas as datas de aula de uma turma no semestre
+const generateSemesterDates = (year: number, semester: string, classDays: string[], customStart?: string, customEnd?: string) => {
+  const dates: { date: string, dayName: string, short: string }[] = [];
+
+  let startDate: Date;
+  let endDate: Date;
+
+  if (customStart && customEnd) {
+    startDate = new Date(customStart + 'T12:00:00');
+    endDate = new Date(customEnd + 'T12:00:00');
+  } else {
+    const startMonth = semester === '1º Semestre' ? 1 : 7; // Feb (1) ou Aug (7) - 0 indexed
+    const endMonth = semester === '1º Semestre' ? 5 : 11; // Jun (5) ou Dec (11)
+    startDate = new Date(year, startMonth, 1);
+    endDate = new Date(year, endMonth, 31);
+  }
 
   const targetIndices = classDays.map(d => dayIndices[d]);
 
@@ -49,13 +60,17 @@ const generateSemesterDates = (year: number, semester: string, classDays: string
   return dates;
 };
 
-const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, students, records, setRecords }) => {
+const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, setClasses, students, records, setRecords }) => {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
   const [filterSemester, setFilterSemester] = useState<'1º Semestre' | '2º Semestre'>(
     new Date().getMonth() < 6 ? '1º Semestre' : '2º Semestre'
   );
+  const [isBulkConfigOpen, setIsBulkConfigOpen] = useState(false);
+  const [bulkStartDate, setBulkStartDate] = useState('');
+  const [bulkEndDate, setBulkEndDate] = useState('');
+  const [isSavingBulk, setIsSavingBulk] = useState(false);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
 
@@ -78,7 +93,7 @@ const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, students, re
 
   const semesterDates = useMemo(() => {
     if (!selectedClass) return [];
-    return generateSemesterDates(selectedClass.year, selectedClass.semester, selectedClass.days);
+    return generateSemesterDates(selectedClass.year, selectedClass.semester, selectedClass.days, selectedClass.startDate, selectedClass.endDate);
   }, [selectedClass]);
 
   // ... (keeping other memos and handlers same)
@@ -137,6 +152,38 @@ const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, students, re
     }
   };
 
+  const handleBulkUpdateDates = async () => {
+    if (!bulkStartDate || !bulkEndDate || isSavingBulk) return;
+
+    if (!window.confirm(`Isso irá atualizar as datas de início e fim de TODAS as ${filteredClasses.length} turmas do ${filterSemester} de ${filterYear}. Deseja continuar?`)) {
+      return;
+    }
+
+    setIsSavingBulk(true);
+    try {
+      const updatedClasses = filteredClasses.map(c => ({
+        ...c,
+        startDate: bulkStartDate,
+        endDate: bulkEndDate
+      }));
+
+      await db.classes.saveAll(updatedClasses);
+
+      setClasses(prev => prev.map(c => {
+        const updated = updatedClasses.find(uc => uc.id === c.id);
+        return updated ? updated : c;
+      }));
+
+      setIsBulkConfigOpen(false);
+      alert('Datas do semestre atualizadas com sucesso em todas as turmas!');
+    } catch (error: any) {
+      console.error('Erro ao atualizar datas em massa:', error);
+      alert(`Erro ao atualizar datas: ${error.message || 'Erro desconhecido'}. Verifique se as colunas start_date e end_date existem na tabela classes.`);
+    } finally {
+      setIsSavingBulk(false);
+    }
+  };
+
   const getStatusDisplay = (studentId: string, date: string) => {
     const status = recordsMap[date]?.statuses[studentId];
     if (status === 'presente') return { char: 'P', color: 'text-blue-600', bg: 'bg-blue-50/30' };
@@ -164,6 +211,18 @@ const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, students, re
           </div>
 
           <div className="bg-white p-2 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-2">
+            <button
+              onClick={() => {
+                setBulkStartDate('');
+                setBulkEndDate('');
+                setIsBulkConfigOpen(true);
+              }}
+              className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all border border-indigo-100/50 mr-2"
+              title="Configurar datas para todas as turmas deste período"
+            >
+              <i className="fas fa-calendar-alt mr-2"></i>
+              Configurar Período
+            </button>
             <input
               type="number"
               value={filterYear}
@@ -181,30 +240,152 @@ const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, students, re
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredClasses.length > 0 ? (
-            filteredClasses.map(c => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedClassId(c.id)}
-                className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-left group"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                    <i className="fas fa-calendar-check text-xl"></i>
-                  </div>
-                  <span className="text-[10px] font-black text-gray-400 bg-gray-50 px-2 py-1 rounded-lg uppercase tracking-widest">{c.time}</span>
+        {/* Modal de Configuração em Massa */}
+        {isBulkConfigOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+              <header className="p-8 bg-indigo-50/50 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1">Configuração em Massa</span>
+                  <h3 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">Datas do Semestre</h3>
                 </div>
-                <h3 className="font-black text-gray-800 uppercase tracking-tight mb-2 truncate">{c.courseName}</h3>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  {c.year} • {c.semester} • {c.days.join(', ')}
-                </p>
-              </button>
-            ))
-          ) : (
-            <div className="col-span-full py-20 bg-gray-50 rounded-[40px] border-2 border-dashed border-gray-200 text-center">
-              <p className="text-gray-400 font-black uppercase tracking-[0.2em] text-[10px]">Nenhuma turma encontrada para este período.</p>
+                <button onClick={() => setIsBulkConfigOpen(false)} className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors shadow-sm">
+                  <i className="fas fa-times"></i>
+                </button>
+              </header>
+              <div className="p-8 space-y-6">
+                <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-xl text-[10px] font-bold text-amber-800 leading-relaxed uppercase tracking-tight">
+                  <i className="fas fa-exclamation-triangle mr-2"></i>
+                  Esta alteração afetará as {filteredClasses.length} turmas selecionadas no filtro atual ({filterYear} - {filterSemester}).
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <section>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Data de Início das Aulas</label>
+                    <input
+                      type="date"
+                      value={bulkStartDate}
+                      onChange={e => setBulkStartDate(e.target.value)}
+                      className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:border-indigo-500 focus:bg-white outline-none font-bold text-gray-700 transition-all shadow-inner"
+                    />
+                  </section>
+                  <section>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Data de Término das Aulas</label>
+                    <input
+                      type="date"
+                      value={bulkEndDate}
+                      onChange={e => setBulkEndDate(e.target.value)}
+                      className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:border-indigo-500 focus:bg-white outline-none font-bold text-gray-700 transition-all shadow-inner"
+                    />
+                  </section>
+                </div>
+                <button
+                  onClick={handleBulkUpdateDates}
+                  disabled={isSavingBulk || !bulkStartDate || !bulkEndDate}
+                  className="w-full bg-indigo-600 text-white font-black uppercase tracking-widest text-xs p-5 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 active:scale-95"
+                >
+                  {isSavingBulk ? 'ATUALIZANDO...' : 'APLICAR EM TODAS AS TURMAS'}
+                </button>
+              </div>
             </div>
+          </div>
+        )}
+
+        <div className="space-y-12">
+          {filteredClasses.length === 0 ? (
+            <div className="py-32 text-center bg-white rounded-[40px] border-4 border-dashed border-gray-100">
+              <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-200">
+                <i className="fas fa-folder-open text-3xl"></i>
+              </div>
+              <p className="text-gray-400 font-bold text-xl uppercase tracking-widest">Nenhuma turma encontrada para este período</p>
+            </div>
+          ) : (
+            daysOfWeek.map(day => {
+              const classesOnDay = filteredClasses
+                .filter(c => c.days.includes(day))
+                .sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00'));
+
+              if (classesOnDay.length === 0) return null;
+
+              return (
+                <div key={day} className="animate-in fade-in slide-in-from-left-4 duration-500">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="h-px flex-1 bg-gradient-to-r from-transparent to-gray-200"></div>
+                    <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.3em] flex items-center gap-2">
+                      <i className="fas fa-calendar-day text-indigo-400"></i>
+                      {day}
+                    </h2>
+                    <div className="h-px flex-1 bg-gradient-to-l from-transparent to-gray-200"></div>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    {classesOnDay.map((c) => {
+                      const colors = [
+                        { bg: 'bg-blue-50', icon: 'bg-blue-100 text-blue-600', accent: 'bg-blue-500', shadow: 'shadow-blue-500/20' },
+                        { bg: 'bg-emerald-50', icon: 'bg-emerald-100 text-emerald-600', accent: 'bg-emerald-500', shadow: 'shadow-emerald-500/20' },
+                        { bg: 'bg-amber-50', icon: 'bg-amber-100 text-amber-600', accent: 'bg-amber-500', shadow: 'shadow-amber-500/20' },
+                        { bg: 'bg-rose-50', icon: 'bg-rose-100 text-rose-600', accent: 'bg-rose-500', shadow: 'shadow-rose-500/20' },
+                        { bg: 'bg-violet-50', icon: 'bg-violet-100 text-violet-600', accent: 'bg-violet-500', shadow: 'shadow-violet-500/20' },
+                        { bg: 'bg-cyan-50', icon: 'bg-cyan-100 text-cyan-600', accent: 'bg-cyan-500', shadow: 'shadow-cyan-500/20' }
+                      ];
+                      const colorIndex = filteredClasses.findIndex(cl => cl.id === c.id);
+                      const color = colors[colorIndex % colors.length];
+
+                      const studentCount = students.filter(s =>
+                        (c.studentIds || []).includes(s.id) ||
+                        (s.enrolledClassIds || []).includes(c.id)
+                      ).filter(s => s.status === 'cursando').length;
+
+                      return (
+                        <div
+                          key={`${day}-${c.id}`}
+                          onClick={() => setSelectedClassId(c.id)}
+                          className={`${color.bg} rounded-[24px] shadow-sm border border-gray-100 hover:shadow-xl ${color.shadow} hover:-translate-y-1 cursor-pointer transition-all duration-300 group relative overflow-hidden`}
+                        >
+                          <div className={`absolute -right-6 -top-6 w-32 h-32 ${color.accent} rounded-full opacity-5 group-hover:opacity-10 transition-all duration-500`}></div>
+
+                          <div className="relative z-10 flex items-center justify-between p-4 gap-6">
+                            <div className="flex items-center gap-5 flex-1 min-w-0">
+                              <div className={`w-14 h-14 ${color.icon} rounded-2xl flex items-center justify-center shadow-inner shrink-0`}>
+                                <i className="fas fa-calendar-check text-xl"></i>
+                              </div>
+
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <h3 className="font-black text-lg text-gray-800 leading-none group-hover:text-indigo-900 transition-colors uppercase tracking-tight truncate pr-4">
+                                  {c.courseName}
+                                </h3>
+                                <div className="flex flex-wrap items-center gap-3 text-[10px] font-bold text-gray-400">
+                                  <span className="flex items-center gap-1.5 bg-white/60 px-2 py-1 rounded-lg shrink-0">
+                                    <i className="fas fa-clock text-indigo-400"></i>
+                                    {c.time || '--:--'}
+                                  </span>
+                                  <span className="bg-white/60 px-2 py-1 rounded-lg uppercase tracking-wider shrink-0">
+                                    {c.year} • {c.semester}
+                                  </span>
+                                  <span className="bg-white/60 px-2 py-1 rounded-lg uppercase tracking-wider shrink-0 text-indigo-400 font-black">
+                                    {c.days.join(', ')}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="hidden md:flex items-center gap-3">
+                              <div className="bg-indigo-50/80 text-indigo-600 px-3 py-1.5 rounded-xl font-black text-[10px] shadow-sm uppercase tracking-wide flex items-center gap-2 border border-indigo-100/30">
+                                <i className="fas fa-user-check"></i>
+                                <span>{studentCount} Ativos</span>
+                              </div>
+                            </div>
+
+                            <div className="w-8 h-8 flex items-center justify-center text-gray-300 group-hover:text-indigo-400 transition-colors ml-2">
+                              <i className="fas fa-chevron-right"></i>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       </div>

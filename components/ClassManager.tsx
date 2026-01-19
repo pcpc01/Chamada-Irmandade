@@ -21,6 +21,8 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [year, setYear] = useState(new Date().getFullYear());
   const [semester, setSemester] = useState(new Date().getMonth() + 1 <= 6 ? '1º Semestre' : '2º Semestre');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [transferringStudent, setTransferringStudent] = useState<{ id: string, name: string } | null>(null);
@@ -62,6 +64,8 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
     setSelectedStudentIds([]);
     setYear(new Date().getFullYear());
     setSemester(new Date().getMonth() + 1 <= 6 ? '1º Semestre' : '2º Semestre');
+    setStartDate('');
+    setEndDate('');
     setIsAdding(false);
     setEditingId(null);
   };
@@ -76,6 +80,8 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
     setSelectedStudentIds(cls.studentIds);
     setYear(cls.year);
     setSemester(cls.semester);
+    setStartDate(cls.startDate || '');
+    setEndDate(cls.endDate || '');
     setIsAdding(true);
     setViewingDetailsId(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -102,18 +108,29 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
         studentIds: selectedStudentIds,
         year,
         semester,
+        startDate,
+        endDate,
         position: existingClass?.position !== undefined ? existingClass.position : classes.length
       };
 
       const savedClass = await db.classes.save(classData);
 
-      const studentsToUpdate = students.filter(s =>
+      // 1. Identificar alunos para ADICIONAR a turma
+      const studentsToAdd = students.filter(s =>
         selectedStudentIds.includes(s.id) &&
         !(s.enrolledClassIds || []).includes(classId)
       );
 
+      // 2. Identificar alunos para REMOVER a turma (apenas se estivermos editando)
+      const studentsToRemove = students.filter(s =>
+        !selectedStudentIds.includes(s.id) &&
+        (s.enrolledClassIds || []).includes(classId)
+      );
+
       const newStudentsState = [...students];
-      for (const s of studentsToUpdate) {
+
+      // Processar adições
+      for (const s of studentsToAdd) {
         const updated = {
           ...s,
           status: 'cursando' as StudentStatus,
@@ -123,6 +140,18 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
         const idx = newStudentsState.findIndex(st => st.id === s.id);
         if (idx !== -1) newStudentsState[idx] = updated;
       }
+
+      // Processar remoções
+      for (const s of studentsToRemove) {
+        const updated = {
+          ...s,
+          enrolledClassIds: (s.enrolledClassIds || []).filter(id => id !== classId)
+        };
+        await db.students.save(updated);
+        const idx = newStudentsState.findIndex(st => st.id === s.id);
+        if (idx !== -1) newStudentsState[idx] = updated;
+      }
+
       setStudents(newStudentsState);
 
       if (editingId) {
@@ -280,7 +309,10 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
       // 3. Atualizar histórico do aluno se necessário
       const updatedStudent = {
         ...student,
-        enrolledClassIds: Array.from(new Set([...(student.enrolledClassIds || []), toClassId]))
+        enrolledClassIds: Array.from(new Set([
+          ...(student.enrolledClassIds || []).filter(id => id !== fromClass.id),
+          toClassId
+        ]))
       };
 
       // Salvar tudo
@@ -839,12 +871,52 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
                     </label>
                     <select
                       value={semester}
-                      onChange={e => setSemester(e.target.value)}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setSemester(val);
+                        // Sugerir datas padrão se estiverem vazias
+                        if (!startDate && !endDate) {
+                          if (val === '1º Semestre') {
+                            setStartDate(`${year}-02-01`);
+                            setEndDate(`${year}-06-30`);
+                          } else {
+                            setStartDate(`${year}-08-01`);
+                            setEndDate(`${year}-12-15`);
+                          }
+                        }
+                      }}
                       className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-[24px] focus:border-indigo-500 focus:bg-white outline-none font-black text-gray-700 text-lg cursor-pointer transition-all shadow-inner appearance-none"
                     >
                       <option value="1º Semestre">1º Semestre (Jan-Jun)</option>
                       <option value="2º Semestre">2º Semestre (Jul-Dez)</option>
                     </select>
+                  </section>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <section>
+                    <label className="flex items-center gap-2 text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-4">
+                      <i className="fas fa-calendar-plus text-sm"></i>
+                      Início das Aulas
+                    </label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={e => setStartDate(e.target.value)}
+                      className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-[24px] focus:border-indigo-500 focus:bg-white outline-none font-black text-gray-700 text-lg transition-all shadow-inner"
+                    />
+                  </section>
+                  <section>
+                    <label className="flex items-center gap-2 text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-4">
+                      <i className="fas fa-calendar-minus text-sm"></i>
+                      Final das Aulas
+                    </label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={e => setEndDate(e.target.value)}
+                      className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-[24px] focus:border-indigo-500 focus:bg-white outline-none font-black text-gray-700 text-lg transition-all shadow-inner"
+                    />
                   </section>
                 </div>
 
@@ -1047,8 +1119,12 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
                       ];
                       const colorIndex = activeViewClasses.findIndex(cl => cl.id === c.id);
                       const color = colors[colorIndex % colors.length];
-                      const activeCount = students.filter(s => c.studentIds.includes(s.id) && s.status === 'cursando').length;
-                      const completedCount = students.filter(s => c.studentIds.includes(s.id) && s.status === 'concluiu').length;
+                      const classStudents = students.filter(s =>
+                        (c.studentIds || []).includes(s.id) ||
+                        (s.enrolledClassIds || []).includes(c.id)
+                      );
+                      const activeCount = classStudents.filter(s => s.status === 'cursando').length;
+                      const completedCount = classStudents.filter(s => s.status === 'concluiu').length;
 
                       return (
                         <div
@@ -1076,6 +1152,9 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
                                   </span>
                                   <span className="bg-white/60 px-2 py-1 rounded-lg uppercase tracking-wider shrink-0">
                                     {c.year} • {c.semester}
+                                  </span>
+                                  <span className="bg-white/60 px-2 py-1 rounded-lg uppercase tracking-wider shrink-0 text-indigo-400 font-black">
+                                    {c.days.join(', ')}
                                   </span>
                                 </div>
                               </div>

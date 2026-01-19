@@ -43,7 +43,11 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
       (selectedClass.studentIds || []).includes(s.id) ||
       (s.enrolledClassIds || []).includes(selectedClass.id)
     )
-  );
+  ).sort((a, b) => {
+    if (a.status === 'desistiu' && b.status !== 'desistiu') return 1;
+    if (a.status !== 'desistiu' && b.status === 'desistiu') return -1;
+    return a.name.localeCompare(b.name);
+  });
 
   const handleDeleteClass = async (e: React.MouseEvent, classId: string) => {
     e.stopPropagation();
@@ -243,10 +247,13 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
                       ];
                       const colorIndex = classes.findIndex(cl => cl.id === c.id);
                       const color = colors[colorIndex % colors.length];
-                      const studentCount = students.filter(s =>
+                      const classStudents_c = students.filter(s =>
                         (c.studentIds || []).includes(s.id) ||
                         (s.enrolledClassIds || []).includes(c.id)
-                      ).length;
+                      );
+                      const activeCount = classStudents_c.filter(s => s.status === 'cursando').length;
+                      const completedCount = classStudents_c.filter(s => s.status === 'concluiu').length;
+                      const dropoutCount = classStudents_c.filter(s => s.status === 'desistiu').length;
 
                       return (
                         <div
@@ -276,11 +283,31 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
                                 </div>
                               </div>
                             </div>
-                            <div className="hidden md:flex items-center gap-3">
-                              <div className="bg-white/60 px-3 py-1.5 rounded-xl font-black text-[10px] text-gray-500 shadow-sm uppercase tracking-wide flex items-center gap-2 border border-black/5">
-                                <i className="fas fa-users"></i>
-                                <span>{studentCount} Alunos</span>
-                              </div>
+                            <div className="hidden md:flex items-center gap-2">
+                              {activeCount > 0 && (
+                                <div className="bg-green-100 text-green-700 px-2.5 py-1 rounded-xl font-black text-[9px] shadow-sm uppercase tracking-wide flex items-center gap-1.5 border border-green-200/50">
+                                  <i className="fas fa-user-check"></i>
+                                  <span>{activeCount} Ativos</span>
+                                </div>
+                              )}
+                              {completedCount > 0 && (
+                                <div className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-xl font-black text-[9px] shadow-sm uppercase tracking-wide flex items-center gap-1.5 border border-blue-200/50">
+                                  <i className="fas fa-user-graduate"></i>
+                                  <span>{completedCount} Formados</span>
+                                </div>
+                              )}
+                              {dropoutCount > 0 && (
+                                <div className="bg-red-100 text-red-700 px-2.5 py-1 rounded-xl font-black text-[9px] shadow-sm uppercase tracking-wide flex items-center gap-1.5 border border-red-200/50">
+                                  <i className="fas fa-user-times"></i>
+                                  <span>{dropoutCount} Desistentes</span>
+                                </div>
+                              )}
+                              {activeCount === 0 && completedCount === 0 && dropoutCount === 0 && (
+                                <div className="bg-gray-100 text-gray-400 px-2.5 py-1 rounded-xl font-black text-[9px] uppercase tracking-wide flex items-center gap-1.5">
+                                  <i className="fas fa-users-slash"></i>
+                                  <span>Sem Alunos</span>
+                                </div>
+                              )}
                             </div>
                             <div className="flex items-center gap-1 border-l border-black/5 pl-4">
                               <button
@@ -357,9 +384,19 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
                 <span className="block text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-0.5">Aulas Dadas</span>
                 <span className="text-xl font-black text-indigo-600 leading-none">{records.filter(r => r.classId === selectedClassId).length}</span>
               </div>
-              <div className="bg-gray-50 px-4 py-2.5 rounded-2xl text-center min-w-[100px] border border-gray-100">
-                <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total Alunos</span>
-                <span className="text-xl font-black text-gray-700 leading-none">{classStudents.length}</span>
+              <div className="flex items-center gap-2">
+                <div className="bg-green-50 px-3 py-2 rounded-2xl text-center min-w-[70px] border border-green-100">
+                  <span className="block text-[7px] font-black text-green-400 uppercase tracking-widest mb-0.5">Ativos</span>
+                  <span className="text-lg font-black text-green-600 appearance-none leading-none">{classStudents.filter(s => s.status === 'cursando').length}</span>
+                </div>
+                <div className="bg-blue-50 px-3 py-2 rounded-2xl text-center min-w-[70px] border border-blue-100">
+                  <span className="block text-[7px] font-black text-blue-400 uppercase tracking-widest mb-0.5">Formados</span>
+                  <span className="text-lg font-black text-blue-600 appearance-none leading-none">{classStudents.filter(s => s.status === 'concluiu').length}</span>
+                </div>
+                <div className="bg-red-50 px-3 py-2 rounded-2xl text-center min-w-[70px] border border-red-100">
+                  <span className="block text-[7px] font-black text-red-400 uppercase tracking-widest mb-0.5">Desist.</span>
+                  <span className="text-lg font-black text-red-600 appearance-none leading-none">{classStudents.filter(s => s.status === 'desistiu').length}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -381,18 +418,19 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
                     {classStudents.map(s => {
                       const stats = calculateStats(s.id, selectedClassId);
                       return (
-                        <tr key={s.id} className="group hover:bg-gray-50/50 transition-colors">
+                        <tr key={s.id} className={`group hover:bg-gray-50/50 transition-colors ${s.status === 'desistiu' ? 'bg-red-50/50' : ''}`}>
                           <td className="px-10 py-6">
                             <button
                               onClick={() => setSelectedStudentId(s.id)}
                               className="flex items-center gap-4 text-left group/btn hover:translate-x-1 transition-transform"
                             >
-                              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center font-black text-gray-400 group-hover:bg-indigo-600 group-hover:text-white transition-all capitalize shadow-inner">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black transition-all capitalize shadow-inner ${s.status === 'desistiu' ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-400 group-hover:bg-indigo-600 group-hover:text-white'}`}>
                                 {s.name.charAt(0)}
                               </div>
                               <div>
-                                <span className="block text-lg font-black text-gray-800 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{s.name}</span>
-                                <span className="text-[9px] font-black text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Clique para ver detalhes</span>
+                                <span className={`block text-lg font-black uppercase tracking-tight transition-colors ${s.status === 'desistiu' ? 'text-red-700' : 'text-gray-800 group-hover:text-indigo-600'}`}>{s.name}</span>
+                                {s.status === 'desistiu' && <span className="text-[9px] font-black text-red-400 uppercase tracking-widest">ALUNO DESISTENTE</span>}
+                                {s.status !== 'desistiu' && <span className="text-[9px] font-black text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-widest">Clique para ver detalhes</span>}
                               </div>
                             </button>
                           </td>
@@ -512,9 +550,9 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
                         let totalAbsences = 0;
                         let totalPresences = 0;
                         return (
-                          <tr key={s.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'} hover:bg-indigo-50/50 transition-colors`}>
-                            <td className="border border-gray-200 px-3 py-1.5 font-bold text-gray-800 uppercase truncate">
-                              {s.name}
+                          <tr key={s.id} className={`${s.status === 'desistiu' ? 'bg-red-50/70' : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30')} hover:bg-indigo-50/50 transition-colors`}>
+                            <td className={`border border-gray-200 px-3 py-1.5 font-bold uppercase truncate ${s.status === 'desistiu' ? 'text-red-800' : 'text-gray-800'}`}>
+                              {s.name} {s.status === 'desistiu' && <span className="text-[7px] bg-red-100 text-red-600 px-1 rounded ml-1">DESISTENTE</span>}
                             </td>
                             {classRecords.map((record) => {
                               const status = record?.statuses?.[s.id];
@@ -768,6 +806,26 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
                       <option value="1º Semestre">1º Semestre</option>
                       <option value="2º Semestre">2º Semestre</option>
                     </select>
+                  </section>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <section>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Início das Aulas</label>
+                    <input
+                      type="date"
+                      value={editingClass.startDate || ''}
+                      onChange={e => setEditingClass({ ...editingClass, startDate: e.target.value })}
+                      className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:border-indigo-500 focus:bg-white outline-none font-bold text-gray-700 transition-all"
+                    />
+                  </section>
+                  <section>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">Final das Aulas</label>
+                    <input
+                      type="date"
+                      value={editingClass.endDate || ''}
+                      onChange={e => setEditingClass({ ...editingClass, endDate: e.target.value })}
+                      className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl focus:border-indigo-500 focus:bg-white outline-none font-bold text-gray-700 transition-all"
+                    />
                   </section>
                 </div>
                 <section>

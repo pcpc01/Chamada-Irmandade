@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { View, Student, Class, AttendanceRecord } from '../types';
 
@@ -42,6 +41,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, classes, records, onNav
       classes: filteredClasses,
       studentsCount: filteredStudents.length,
       studentsList: filteredStudents,
+      absoluteTotalStudents: students.length, // Adicionado para KPI fixo
       records: filteredRecords
     };
   }, [filterMode, filterYear, filterSemester, students, classes, records]);
@@ -125,13 +125,23 @@ const Dashboard: React.FC<DashboardProps> = ({ students, classes, records, onNav
       </header>
 
       {/* SEÇÃO 1: NÚMEROS PRINCIPAIS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-10">
         <div className="bg-white p-6 rounded-[28px] shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group" onClick={() => onNavigate('students')}>
           <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 text-2xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-inner">
             <i className="fas fa-users"></i>
           </div>
           <div>
-            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">Total de Alunos</p>
+            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">Base Total</p>
+            <h3 className="text-3xl font-black text-gray-800 tracking-tighter">{students.length}</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-[28px] shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group" onClick={() => onNavigate('students')}>
+          <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 text-2xl group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-inner">
+            <i className="fas fa-user-tag"></i>
+          </div>
+          <div>
+            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">No Período</p>
             <h3 className="text-3xl font-black text-gray-800 tracking-tighter">{filteredData.studentsCount}</h3>
           </div>
         </div>
@@ -151,7 +161,7 @@ const Dashboard: React.FC<DashboardProps> = ({ students, classes, records, onNav
             <i className="fas fa-chart-line"></i>
           </div>
           <div>
-            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">Frequência Geral</p>
+            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">Frequência</p>
             <h3 className="text-3xl font-black text-emerald-600 tracking-tighter">{attendanceRate.toFixed(0)}%</h3>
           </div>
         </div>

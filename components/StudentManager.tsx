@@ -19,6 +19,18 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
   const [observations, setObservations] = useState('');
   const [status, setStatus] = useState<StudentStatus>('cursando');
   const [saving, setSaving] = useState(false);
+  const [sortBy, setSortBy] = useState<'name' | 'date'>('name');
+
+  const formatPhone = (value: string) => {
+    const raw = value.replace(/\D/g, '');
+    if (raw.length <= 10) {
+      // (12) 3456-7890
+      return raw.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3').slice(0, 14);
+    } else {
+      // (12) 93456-7890
+      return raw.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3').slice(0, 15);
+    }
+  };
 
   const resetForm = () => {
     setIsAdding(false);
@@ -68,7 +80,8 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
         phone,
         observations,
         status,
-        enrolledClassIds: existing ? existing.enrolledClassIds : []
+        enrolledClassIds: existing ? existing.enrolledClassIds : [],
+        registrationDate: editingId ? existing?.registrationDate : new Date().toISOString().split('T')[0]
       };
 
       const savedStudent = await db.students.save(studentData);
@@ -203,6 +216,33 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
         </button>
       </div>
 
+      <div className="flex flex-wrap gap-4 mb-6 items-center bg-white/50 p-2 rounded-2xl border border-white/60">
+        <div className="flex items-center gap-2 px-3">
+          <i className="fas fa-sort-amount-down text-indigo-400 text-sm"></i>
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ordenar por:</span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSortBy('name')}
+            className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${sortBy === 'name'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'bg-white text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+              }`}
+          >
+            Alfabeto (A-Z)
+          </button>
+          <button
+            onClick={() => setSortBy('date')}
+            className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${sortBy === 'date'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+              : 'bg-white text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+              }`}
+          >
+            Data de Registro
+          </button>
+        </div>
+      </div>
+
       {isAdding && (
         <form onSubmit={handleAdd} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
           <h3 className="text-lg font-bold text-gray-800 mb-4">{editingId ? 'Editar Aluno' : 'Novo Aluno'}</h3>
@@ -223,7 +263,10 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
               <input
                 type="tel"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={e => {
+                  const raw = e.target.value.replace(/\D/g, '');
+                  if (raw.length <= 11) setPhone(formatPhone(e.target.value));
+                }}
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 placeholder="(00) 00000-0000"
               />
@@ -258,7 +301,16 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
           </div>
         ) : (
           [...students]
-            .sort((a, b) => a.name.localeCompare(b.name))
+            .sort((a, b) => {
+              if (sortBy === 'name') {
+                return a.name.localeCompare(b.name);
+              } else {
+                // Sort by date, newest first. If no date, put at the end.
+                const dateA = a.registrationDate || '0000-00-00';
+                const dateB = b.registrationDate || '0000-00-00';
+                return dateB.localeCompare(dateA);
+              }
+            })
             .map((s, index) => {
               const colors = [
                 { bg: 'bg-[#f0f9ff]', border: 'border-blue-100/50', icon: 'text-blue-400' },
@@ -294,53 +346,70 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
                             {s.name}
                           </h3>
                         </button>
-                        <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mt-0.5">
-                          ID: {s.id.split('-')[0]}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest block mt-0.5">
+                            ID: {s.id.split('-')[0]}
+                          </span>
+                          {s.registrationDate && (
+                            <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-widest block mt-0.5">
+                              • CADASTRO: {new Date(s.registrationDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    {/* 2. Contact Column (Fixed Width) */}
-                    <div className="w-full lg:w-48 shrink-0">
-                      <div className="bg-white/50 px-4 py-2.5 rounded-2xl border border-white/60 shadow-sm">
+                    {/* 2. Contact Column */}
+                    <div className="w-full lg:w-32 shrink-0">
+                      <div className="bg-white/50 px-3 py-2 rounded-2xl border border-white/60 shadow-sm">
                         <div className="min-w-0">
                           <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Telefone</span>
                           <span className="text-xs font-black text-gray-800 tracking-tighter leading-none block truncate">
-                            {s.phone || '(00) 00000-0000'}
+                            {s.phone ? formatPhone(s.phone) : '(00) 00000-0000'}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* 3. Observations Column (Flexible) */}
-                    <div className="flex-1 w-full min-w-0">
+                    {/* 3. Observations Column (Priority) */}
+                    <div className="flex-[2] w-full min-w-[200px]">
                       {s.observations ? (
-                        <div className="bg-white/30 px-4 py-2.5 rounded-2xl border border-white/40 shadow-sm">
+                        <div className="bg-white/30 px-4 py-3 rounded-2xl border border-white/40 shadow-inner">
                           <div className="min-w-0">
-                            <span className="block text-[8px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1">Observação</span>
-                            <p className="text-[10px] font-bold text-gray-600 leading-tight italic truncate">
+                            <span className="block text-[8px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1.5">Observação</span>
+                            <p className="text-[11px] font-medium text-gray-700 leading-relaxed break-words">
                               {s.observations}
                             </p>
                           </div>
                         </div>
                       ) : (
-                        <div className="h-12 border border-dashed border-black/5 rounded-2xl flex items-center px-4 opacity-20">
+                        <div className="h-full min-h-[50px] border border-dashed border-black/5 rounded-2xl flex items-center px-4 opacity-20">
                           <span className="text-[8px] font-black uppercase tracking-widest">Sem observações</span>
                         </div>
                       )}
                     </div>
 
-                    {/* 4. Courses Column (Reduced Width) */}
+                    {/* 4. Courses Column */}
                     <div className="lg:w-48 shrink-0 flex items-center gap-2 overflow-hidden">
                       <div className="flex flex-col gap-1.5 w-full">
                         {s.enrolledClassIds && s.enrolledClassIds.slice(0, 2).map(classId => {
                           const cls = classes.find(c => c.id === classId);
+                          let statusColor = "text-gray-400 bg-gray-50";
+                          if (s.status === 'cursando') statusColor = "text-emerald-600 bg-emerald-50";
+                          if (s.status === 'concluiu') statusColor = "text-blue-600 bg-blue-50";
+                          if (s.status === 'desistiu') statusColor = "text-red-600 bg-red-50";
+
                           return cls ? (
-                            <div key={classId} className="bg-white/80 px-2.5 py-1.5 rounded-lg border border-black/5 shadow-sm flex justify-between items-center gap-2">
-                              <span className="text-[9px] font-black text-gray-800 uppercase tracking-tight truncate flex-1">
-                                {cls.courseName}
-                              </span>
-                              <span className="text-[7px] font-bold text-indigo-400 uppercase tracking-widest whitespace-nowrap shrink-0">
+                            <div key={classId} className="bg-white/90 px-3 py-2 rounded-xl border border-black/5 shadow-sm flex flex-col gap-1">
+                              <div className="flex justify-between items-center gap-3">
+                                <span className="text-[11px] font-black text-gray-800 uppercase tracking-tight truncate flex-1">
+                                  {cls.courseName}
+                                </span>
+                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg uppercase tracking-tight shrink-0 shadow-sm ${statusColor}`}>
+                                  {s.status}
+                                </span>
+                              </div>
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
                                 {cls.year} • {cls.semester}
                               </span>
                             </div>
