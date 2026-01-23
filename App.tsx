@@ -6,7 +6,7 @@ import Dashboard from './components/Dashboard';
 import StudentManager from './components/StudentManager';
 import ClassManager from './components/ClassManager';
 import AttendanceTaker from './components/AttendanceTaker';
-import SettingsManager from './components/SettingsManager';
+import SystemSettings from './components/SystemSettings';
 import Reports from './components/Reports';
 import LoginPage from './components/Login';
 import { db, supabase } from './supabase';
@@ -126,7 +126,7 @@ const App: React.FC = () => {
         />;
       case 'holidays':
       case 'settings':
-        return <SettingsManager
+        return <SystemSettings
           holidays={holidays}
           setHolidays={setHolidays}
         />;
