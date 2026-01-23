@@ -1,37 +1,60 @@
 
 import React, { useState, useEffect } from 'react';
-import { Student, Class, AttendanceRecord, View } from './types';
+import { Student, Class, AttendanceRecord, View, Holiday } from './types';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import StudentManager from './components/StudentManager';
 import ClassManager from './components/ClassManager';
 import AttendanceTaker from './components/AttendanceTaker';
+import SettingsManager from './components/SettingsManager';
 import Reports from './components/Reports';
-import { db } from './supabase';
+import LoginPage from './components/Login';
+import { db, supabase } from './supabase';
 
 const App: React.FC = () => {
+  const [session, setSession] = useState<any>(null);
   const [view, setView] = useState<View>('dashboard');
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReportStudentId, setSelectedReportStudentId] = useState<string | null>(null);
   const [selectedReportClassId, setSelectedReportClassId] = useState<string | null>(null);
 
+  // Gerenciar Sessão do Supabase
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Carregar dados iniciais do Supabase
   useEffect(() => {
+    if (!session) return;
+
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [studentsData, classesData, attendanceData] = await Promise.all([
+        const [studentsData, classesData, attendanceData, holidaysData] = await Promise.all([
           db.students.getAll(),
           db.classes.getAll(),
-          db.attendance.getAll()
+          db.attendance.getAll(),
+          db.holidays.getAll()
         ]);
 
         setStudents(studentsData);
         setClasses(classesData);
         setAttendanceRecords(attendanceData);
+        setHolidays(holidaysData);
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
         alert('Erro ao conectar com o banco de dados. Verifique sua conexão.');
@@ -41,7 +64,11 @@ const App: React.FC = () => {
     };
 
     fetchData();
-  }, []);
+  }, [session]);
+
+  if (!session) {
+    return <LoginPage onLogin={() => { }} />;
+  }
 
   const handleSetView = (newView: View) => {
     // Resetar seleções ao navegar manualmente
@@ -67,6 +94,7 @@ const App: React.FC = () => {
           students={students}
           classes={classes}
           records={attendanceRecords}
+          holidays={holidays}
           onNavigate={handleSetView}
         />;
       case 'students':
@@ -94,6 +122,13 @@ const App: React.FC = () => {
           students={students}
           records={attendanceRecords}
           setRecords={setAttendanceRecords}
+          holidays={holidays}
+        />;
+      case 'holidays':
+      case 'settings':
+        return <SettingsManager
+          holidays={holidays}
+          setHolidays={setHolidays}
         />;
       case 'reports':
         return <Reports
@@ -104,12 +139,14 @@ const App: React.FC = () => {
           records={attendanceRecords}
           initialStudentId={selectedReportStudentId}
           initialClassId={selectedReportClassId}
+          holidays={holidays}
         />;
       default:
         return <Dashboard
           students={students}
           classes={classes}
           records={attendanceRecords}
+          holidays={holidays}
           onNavigate={handleSetView}
         />;
     }

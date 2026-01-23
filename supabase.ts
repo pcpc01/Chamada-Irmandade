@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Student, Class, AttendanceRecord } from './types';
+import { Student, Class, AttendanceRecord, Holiday } from './types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -172,6 +172,81 @@ export const db = {
                 classId: saved.class_id,
                 statuses: saved.statuses
             } as AttendanceRecord;
+        }
+    },
+    holidays: {
+        getAll: async () => {
+            const { data, error } = await supabase.from('holidays').select('*').order('date');
+            if (error) throw error;
+            return (data || []).map(h => ({
+                id: h.id,
+                date: h.date,
+                name: h.name
+            })) as Holiday[];
+        },
+        save: async (holiday: Holiday) => {
+            const payload = {
+                id: holiday.id,
+                date: holiday.date,
+                name: holiday.name
+            };
+            const { data, error } = await supabase.from('holidays').upsert(payload).select();
+            if (error) throw error;
+            const saved = data[0];
+            return {
+                id: saved.id,
+                date: saved.date,
+                name: saved.name
+            } as Holiday;
+        },
+        delete: async (id: string) => {
+            const { error } = await supabase.from('holidays').delete().eq('id', id);
+            if (error) throw error;
+        }
+    },
+    earnings: {
+        getAll: async () => {
+            const { data, error } = await supabase.from('earnings_records').select('*').order('month', { ascending: false });
+            if (error) throw error;
+            return (data || []).map(r => ({
+                id: r.id,
+                month: r.month,
+                valuePerClass: r.value_per_class,
+                classesPerDay: r.classes_per_day,
+                totalClasses: r.total_classes,
+                totalAmount: r.total_amount,
+                selectedDays: r.selected_days || [],
+                updatedAt: r.updated_at
+            }));
+        },
+        save: async (record: any) => {
+            const payload = {
+                id: record.id,
+                month: record.month,
+                value_per_class: record.valuePerClass,
+                classes_per_day: record.classesPerDay,
+                total_classes: record.totalClasses,
+                total_amount: record.totalAmount,
+                selected_days: record.selectedDays,
+                updated_at: new Date().toISOString()
+            };
+            const { data, error } = await supabase.from('earnings_records').upsert(payload).select();
+            if (error) throw error;
+            const saved = data[0];
+            return {
+                id: saved.id,
+                month: saved.month,
+                valuePerClass: saved.value_per_class,
+                classesPerDay: saved.classes_per_day,
+                totalClasses: saved.total_classes,
+                totalAmount: saved.total_amount,
+                selectedDays: saved.selected_days || [],
+                updatedAt: saved.updated_at
+            };
+        },
+        delete: async (id: string) => {
+            const { error } = await supabase.from('earnings_records').delete().eq('id', id);
+            if (error) throw error;
         }
     }
 };

@@ -26,7 +26,7 @@ export interface Class {
   endDate?: string;   // ISO String (YYYY-MM-DD)
 }
 
-export type AttendanceStatus = 'presente' | 'ausente' | 'justificado';
+export type AttendanceStatus = 'presente' | 'ausente' | 'justificado' | 'feriado';
 
 export interface AttendanceRecord {
   id: string;
@@ -35,4 +35,21 @@ export interface AttendanceRecord {
   statuses: Record<string, AttendanceStatus>; // Mapeamento de ID do aluno para seu status
 }
 
-export type View = 'dashboard' | 'students' | 'classes' | 'attendance' | 'reports';
+export interface Holiday {
+  id: string;
+  date: string; // ISO String (YYYY-MM-DD)
+  name: string;
+}
+
+export interface EarningsRecord {
+  id: string;
+  month: string; // "MM-YYYY"
+  valuePerClass: number;
+  classesPerDay: number;
+  totalClasses: number;
+  totalAmount: number;
+  selectedDays: string[]; // ISO Strings
+  updatedAt: string;
+}
+
+export type View = 'dashboard' | 'students' | 'classes' | 'attendance' | 'reports' | 'holidays' | 'settings';
