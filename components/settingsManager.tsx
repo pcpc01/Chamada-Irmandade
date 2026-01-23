@@ -90,3 +90,4 @@ const SettingsManager: React.FC<SettingsManagerProps> = ({ holidays, setHolidays
 };
 
 export default SettingsManager;
+
