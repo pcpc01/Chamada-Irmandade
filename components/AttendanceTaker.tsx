@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Class, Student, AttendanceRecord, AttendanceStatus } from '../types';
+import { Class, Student, AttendanceRecord, AttendanceStatus, Holiday } from '../types';
 import { db } from '../supabase';
 
 interface AttendanceTakerProps {
@@ -9,6 +9,7 @@ interface AttendanceTakerProps {
   records: AttendanceRecord[];
   setRecords: React.Dispatch<React.SetStateAction<AttendanceRecord[]>>;
   setClasses: React.Dispatch<React.SetStateAction<Class[]>>;
+  holidays: Holiday[];
 }
 
 const dayNameMap: Record<number, string> = {
@@ -60,7 +61,7 @@ const generateSemesterDates = (year: number, semester: string, classDays: string
   return dates;
 };
 
-const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, setClasses, students, records, setRecords }) => {
+const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, setClasses, students, records, setRecords, holidays }) => {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
@@ -110,6 +111,11 @@ const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, setClasses, 
 
   const handleCellClick = async (studentId: string, date: string) => {
     if (!selectedClassId || savingId) return;
+
+    if (holidays.some(h => h.date === date)) {
+      alert('Esta data é um feriado. Não é possível registrar chamada.');
+      return;
+    }
 
     const existingRecord = recordsMap[date];
     const currentStatus = existingRecord?.statuses[studentId];
@@ -185,6 +191,9 @@ const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, setClasses, 
   };
 
   const getStatusDisplay = (studentId: string, date: string) => {
+    const holiday = holidays.find(h => h.date === date);
+    if (holiday) return { char: 'H', color: 'text-indigo-400', bg: 'bg-indigo-50/50', isHoliday: true, holidayName: holiday.name };
+
     const status = recordsMap[date]?.statuses[studentId];
     if (status === 'presente') return { char: 'P', color: 'text-blue-600', bg: 'bg-blue-50/30' };
     if (status === 'ausente') return { char: 'F', color: 'text-rose-600', bg: 'bg-rose-50/30' }; // F de Falta (como na imagem)
@@ -193,7 +202,10 @@ const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, setClasses, 
   };
 
   const getSummary = (studentId: string) => {
-    const datesWithStatus = semesterDates.map(d => recordsMap[d.date]?.statuses[studentId]).filter(Boolean);
+    const datesWithStatus = semesterDates
+      .filter(d => !holidays.some(h => h.date === d.date))
+      .map(d => recordsMap[d.date]?.statuses[studentId])
+      .filter(Boolean);
     const presences = datesWithStatus.filter(s => s === 'presente' || s === 'justificado').length;
     const absences = datesWithStatus.filter(s => s === 'ausente').length;
     const total = datesWithStatus.length;
@@ -430,12 +442,16 @@ const AttendanceTaker: React.FC<AttendanceTakerProps> = ({ classes, setClasses, 
             <thead>
               <tr className="bg-[#1e293b] text-white">
                 <th className="sticky left-0 z-20 bg-[#1e293b] p-4 text-left font-black text-[11px] uppercase tracking-widest min-w-[200px] border-r border-gray-700">Aluno</th>
-                {semesterDates.map(d => (
-                  <th key={d.date} className="p-3 text-center border-r border-gray-700 min-w-[60px]">
-                    <div className="text-[9px] font-black opacity-60">{d.short}</div>
-                    <div className="text-[11px] font-black mt-0.5">{d.date.split('-').reverse().slice(0, 2).join('/')}</div>
-                  </th>
-                ))}
+                {semesterDates.map(d => {
+                  const holiday = holidays.find(h => h.date === d.date);
+                  return (
+                    <th key={d.date} className={`p-3 text-center border-r border-gray-700 min-w-[60px] ${holiday ? 'bg-indigo-900/50' : ''}`} title={holiday?.name}>
+                      <div className="text-[9px] font-black opacity-60">{d.short}</div>
+                      <div className="text-[11px] font-black mt-0.5">{d.date.split('-').reverse().slice(0, 2).join('/')}</div>
+                      {holiday && <div className="text-[8px] font-black text-indigo-300 uppercase mt-0.5">FER</div>}
+                    </th>
+                  );
+                })}
                 <th colSpan={3} className="bg-[#1e293b] p-3 text-center font-black text-[11px] uppercase tracking-widest border-l border-gray-700">Resumo</th>
               </tr>
               <tr className="bg-[#2d3748] text-white/70 border-b border-gray-800">

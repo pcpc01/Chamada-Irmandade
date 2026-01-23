@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { View, Student, Class, AttendanceRecord } from '../types';
+import { View, Student, Class, AttendanceRecord, Holiday } from '../types';
 
 interface DashboardProps {
   students: Student[];
   classes: Class[];
   records: AttendanceRecord[];
+  holidays: Holiday[];
   onNavigate: (view: View) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ students, classes, records, onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ students, classes, records, holidays, onNavigate }) => {
   const [filterMode, setFilterMode] = useState<'always' | 'period'>('period');
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
   const [filterSemester, setFilterSemester] = useState<'1º Semestre' | '2º Semestre'>(
@@ -57,8 +58,20 @@ const Dashboard: React.FC<DashboardProps> = ({ students, classes, records, onNav
   const daysMap: Record<number, string> = {
     0: 'Domingo', 1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta', 5: 'Sexta', 6: 'Sábado'
   };
+
+  const todayDate = new Date().toISOString().split('T')[0];
+  const todayHoliday = holidays.find(h => h.date === todayDate);
   const todayName = daysMap[new Date().getDay()];
-  const todayClasses = filteredData.classes.filter(c => c.days.includes(todayName));
+  const todayClasses = todayHoliday ? [] : filteredData.classes.filter(c => c.days.includes(todayName));
+
+  const upcomingHolidays = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return holidays
+      .filter(h => new Date(h.date + 'T00:00:00') >= today)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3);
+  }, [holidays]);
 
   // 3. Taxa de Frequência Recente (baseado nos registros filtrados)
   let totalPresences = 0;
@@ -124,6 +137,25 @@ const Dashboard: React.FC<DashboardProps> = ({ students, classes, records, onNav
         </div>
       </header>
 
+      {todayHoliday && (
+        <div className="mb-10 bg-indigo-600 text-white p-8 rounded-[40px] shadow-xl shadow-indigo-200 animate-in bounce-in duration-700 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+          <div className="w-20 h-20 bg-white/20 rounded-[32px] flex items-center justify-center text-4xl shrink-0 backdrop-blur-md">
+            <i className="fas fa-umbrella-beach"></i>
+          </div>
+          <div className="text-center md:text-left flex-1">
+            <h2 className="text-3xl font-black uppercase tracking-tighter mb-1">Hoje é Feriado!</h2>
+            <p className="text-indigo-100 font-bold uppercase tracking-widest text-xs">{todayHoliday.name} • As chamadas estão suspensas para hoje.</p>
+          </div>
+          <button
+            onClick={() => onNavigate('settings')}
+            className="px-8 py-4 bg-white text-indigo-600 rounded-[22px] font-black uppercase tracking-widest text-xs hover:bg-indigo-50 transition-all shadow-lg active:scale-95"
+          >
+            Ver Calendário
+          </button>
+        </div>
+      )}
+
       {/* SEÇÃO 1: NÚMEROS PRINCIPAIS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-10">
         <div className="bg-white p-6 rounded-[28px] shadow-sm border border-gray-100 flex items-center gap-4 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group" onClick={() => onNavigate('students')}>
@@ -180,10 +212,11 @@ const Dashboard: React.FC<DashboardProps> = ({ students, classes, records, onNav
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         {/* SEÇÃO 2: TURMAS DE HOJE */}
         <div className="lg:col-span-8 space-y-6">
-          <div className="flex items-center gap-4">
-            <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-            <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">Turmas Programadas para Hoje</h2>
-            <div className="h-px flex-1 bg-gradient-to-r from-gray-100 to-transparent"></div>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+              <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">Turmas Programadas para Hoje</h2>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -292,6 +325,42 @@ const Dashboard: React.FC<DashboardProps> = ({ students, classes, records, onNav
                   {filteredData.studentsCount > 0 ? ` Você possui ${filteredData.studentsCount} alunos vinculados a este contexto.` : ' Nenhuma informação encontrada para este filtro.'}
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* PRÓXIMOS FERIADOS */}
+          <div className="mt-8 space-y-6">
+            <div className="flex items-center gap-4">
+              <h2 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">Próximos Feriados</h2>
+              <div className="h-px flex-1 bg-gradient-to-r from-gray-100 to-transparent"></div>
+            </div>
+
+            <div className="bg-white p-6 rounded-[40px] shadow-sm border border-gray-100 divide-y divide-gray-50">
+              {upcomingHolidays.length === 0 ? (
+                <p className="text-center py-4 text-gray-400 text-[10px] font-bold uppercase tracking-widest">Sem feriados próximos</p>
+              ) : (
+                upcomingHolidays.map(h => (
+                  <div key={h.id} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 font-black text-xs">
+                        {new Date(h.date + 'T00:00:00').getDate()}
+                      </div>
+                      <div>
+                        <p className="font-black text-gray-800 text-xs uppercase tracking-tight leading-none mb-1">{h.name}</p>
+                        <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">
+                          {new Date(h.date + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long' })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              <button
+                onClick={() => onNavigate('settings')}
+                className="w-full mt-4 pt-4 border-t border-gray-50 text-[9px] font-black text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors"
+              >
+                Gerenciar Feriados
+              </button>
             </div>
           </div>
         </div>

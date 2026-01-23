@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { View } from '../types';
+import { supabase } from '../supabase';
 
 interface SidebarProps {
   currentView: View;
@@ -14,7 +15,15 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
     { id: 'classes', icon: 'fa-chalkboard-user', label: 'Turmas' },
     { id: 'attendance', icon: 'fa-calendar-check', label: 'Chamada' },
     { id: 'reports', icon: 'fa-file-lines', label: 'Relatórios' },
+    { id: 'settings', icon: 'fa-cog', label: 'Configurações' },
   ];
+
+  const handleLogout = async () => {
+    const confirmLogout = window.confirm('Deseja realmente sair do sistema?');
+    if (confirmLogout) {
+      await supabase.auth.signOut();
+    }
+  };
 
   return (
     <aside className="w-20 md:w-64 bg-indigo-700 text-white flex flex-col transition-all duration-300">
@@ -35,9 +44,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
           <button
             key={item.id}
             onClick={() => setView(item.id as View)}
-            className={`w-full flex items-center justify-center md:justify-start gap-4 p-4 transition-colors ${currentView === item.id
-                ? 'bg-indigo-800 border-l-4 border-indigo-300'
-                : 'hover:bg-indigo-600'
+            className={`w-full flex items-center justify-center md:justify-start gap-4 p-4 transition-colors ${currentView === item.id || (item.id === 'settings' && currentView === 'holidays')
+              ? 'bg-indigo-800 border-l-4 border-indigo-300'
+              : 'hover:bg-indigo-600'
               }`}
           >
             <i className={`fas ${item.icon} text-lg`}></i>
@@ -46,8 +55,18 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
         ))}
       </nav>
 
+      <div className="p-4 border-t border-indigo-600">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center md:justify-start gap-4 p-4 hover:bg-red-600/20 text-indigo-200 transition-colors rounded-xl group"
+        >
+          <i className="fas fa-sign-out-alt text-lg group-hover:text-white transition-colors"></i>
+          <span className="hidden md:block font-bold text-xs uppercase tracking-widest group-hover:text-white transition-colors">Sair da Conta</span>
+        </button>
+      </div>
+
       <div className="p-4 border-t border-indigo-600 hidden md:block">
-        <p className="text-xs text-indigo-300 text-center">v1.0.0 - MVP</p>
+        <p className="text-[10px] text-indigo-300 text-center uppercase font-bold tracking-widest opacity-50">v1.1.0 - Auth</p>
       </div>
     </aside>
   );

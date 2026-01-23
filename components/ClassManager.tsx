@@ -386,31 +386,31 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
   };
 
   const StudentRow: React.FC<{ student: Student }> = ({ student }) => (
-    <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors group">
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm
+    <div className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors group">
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0
           ${student.status === 'cursando' ? 'bg-green-100 text-green-700' :
             student.status === 'concluiu' ? 'bg-blue-100 text-blue-700' :
               'bg-red-100 text-red-700'}`}>
           {student.name.charAt(0)}
         </div>
-        <div>
-          <p className="font-semibold text-gray-800">{student.name}</p>
-          <p className="text-[10px] text-gray-500">{student.phone || 'Sem telefone'}</p>
+        <div className="min-w-0 flex-1">
+          <p className="font-extrabold text-gray-800 text-[11px] truncate uppercase tracking-tight" title={student.name}>{student.name}</p>
+          <p className="text-[9px] font-bold text-gray-400 truncate tracking-widest">{student.phone || 'S/ Telefone'}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 ml-2">
         <button
           onClick={() => setTransferringStudent({ id: student.id, name: student.name })}
           title="Transferir de Turma"
-          className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all opacity-0 group-hover:opacity-100"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all opacity-0 group-hover:opacity-100"
         >
-          <i className="fas fa-exchange-alt text-xs"></i>
+          <i className="fas fa-exchange-alt text-[10px]"></i>
         </button>
         <select
           value={student.status}
           onChange={(e) => handleStatusChange(student, e.target.value as StudentStatus)}
-          className={`px-3 py-1.5 rounded-full text-[10px] font-black border outline-none cursor-pointer transition-all uppercase tracking-wider
+          className={`px-2 py-1 rounded-lg text-[9px] font-black border outline-none cursor-pointer transition-all uppercase tracking-tighter min-w-[85px]
             ${student.status === 'cursando' ? 'text-green-700 bg-green-50 border-green-200' :
               student.status === 'desistiu' ? 'text-red-700 bg-red-50 border-red-200' :
                 'text-blue-700 bg-blue-50 border-blue-200'}`}
@@ -455,9 +455,9 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
             }
           }}
           title="Remover da Turma"
-          className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
         >
-          <i className="fas fa-trash-alt text-xs"></i>
+          <i className="fas fa-trash-alt text-[10px]"></i>
         </button>
       </div>
     </div>
@@ -492,7 +492,7 @@ const ClassManager: React.FC<ClassManagerProps> = ({ classes, setClasses, studen
     const classStudents = students.filter(s =>
       (cls.studentIds || []).includes(s.id) ||
       (s.enrolledClassIds || []).includes(cls.id)
-    );
+    ).sort((a, b) => a.name.localeCompare(b.name));
 
     const cursando = classStudents.filter(s => s.status === 'cursando');
     const concluiu = classStudents.filter(s => s.status === 'concluiu');

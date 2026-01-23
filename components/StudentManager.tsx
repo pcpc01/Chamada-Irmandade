@@ -20,6 +20,21 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
   const [status, setStatus] = useState<StudentStatus>('cursando');
   const [saving, setSaving] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'date'>('name');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredStudents = students.filter(s => {
+    const trimmedSearch = searchTerm.trim();
+    if (!trimmedSearch) return true;
+
+    const searchLower = trimmedSearch.toLowerCase();
+    const nameMatch = (s.name || '').toLowerCase().includes(searchLower);
+
+    // Só pesquisa por telefone se o termo de busca contiver números
+    const cleanSearch = trimmedSearch.replace(/\D/g, '');
+    const phoneMatch = cleanSearch !== '' && (s.phone || '').replace(/\D/g, '').includes(cleanSearch);
+
+    return nameMatch || phoneMatch;
+  });
 
   const formatPhone = (value: string) => {
     const raw = value.replace(/\D/g, '');
@@ -216,10 +231,23 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-4 mb-6 items-center bg-white/50 p-2 rounded-2xl border border-white/60">
+      <div className="flex flex-wrap gap-4 mb-6 items-center bg-white/50 p-2 rounded-2xl border border-white/60 shadow-sm">
+        <div className="flex-1 min-w-[300px] relative group">
+          <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300 group-focus-within:text-indigo-600 transition-colors"></i>
+          <input
+            type="text"
+            placeholder="Pesquisar por nome ou telefone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-11 pr-4 py-2.5 bg-white border border-transparent rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-gray-300 shadow-inner"
+          />
+        </div>
+
+        <div className="h-8 w-px bg-gray-200 hidden md:block"></div>
+
         <div className="flex items-center gap-2 px-3">
           <i className="fas fa-sort-amount-down text-indigo-400 text-sm"></i>
-          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ordenar por:</span>
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ordenar:</span>
         </div>
         <div className="flex gap-2">
           <button
@@ -229,7 +257,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
               : 'bg-white text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
               }`}
           >
-            Alfabeto (A-Z)
+            A-Z
           </button>
           <button
             onClick={() => setSortBy('date')}
@@ -238,7 +266,7 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
               : 'bg-white text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
               }`}
           >
-            Data de Registro
+            Cadastro
           </button>
         </div>
       </div>
@@ -292,15 +320,17 @@ const StudentManager: React.FC<StudentManagerProps> = ({ students, setStudents, 
       )}
 
       <div className="space-y-4 mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        {students.length === 0 ? (
+        {filteredStudents.length === 0 ? (
           <div className="bg-white rounded-[40px] border-4 border-dashed border-gray-100 p-20 text-center shadow-sm">
             <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-8 text-gray-200 text-4xl">
               <i className="fas fa-users-slash"></i>
             </div>
-            <h3 className="text-2xl font-black text-gray-300 uppercase tracking-[0.2em]">Nenhum aluno encontrado</h3>
+            <h3 className="text-2xl font-black text-gray-300 uppercase tracking-[0.2em]">
+              {searchTerm ? 'Nenhum resultado para a busca' : 'Nenhum aluno encontrado'}
+            </h3>
           </div>
         ) : (
-          [...students]
+          [...filteredStudents]
             .sort((a, b) => {
               if (sortBy === 'name') {
                 return a.name.localeCompare(b.name);

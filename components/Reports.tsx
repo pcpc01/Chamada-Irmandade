@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Student, Class, AttendanceRecord } from '../types';
+import { Student, Class, AttendanceRecord, Holiday } from '../types';
 import { db } from '../supabase';
 import * as XLSX from 'xlsx';
 
@@ -10,11 +10,12 @@ interface ReportsProps {
   classes: Class[];
   setClasses: React.Dispatch<React.SetStateAction<Class[]>>;
   records: AttendanceRecord[];
+  holidays: Holiday[];
   initialStudentId?: string | null;
   initialClassId?: string | null;
 }
 
-const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setClasses, records, initialStudentId, initialClassId }) => {
+const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setClasses, records, holidays, initialStudentId, initialClassId }) => {
   const [selectedClassId, setSelectedClassId] = useState(initialClassId || '');
   const [selectedStudentId, setSelectedStudentId] = useState(initialStudentId || '');
   const [editingClass, setEditingClass] = useState<Class | null>(null);
@@ -25,7 +26,10 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
 
   const calculateStats = (studentId: string, classId: string) => {
     const classRecords = records.filter(r => r.classId === classId);
-    const relevantRecords = classRecords.filter(r => r.statuses && r.statuses[studentId]);
+    // Ignore records that are on holiday dates
+    const nonHolidayRecords = classRecords.filter(r => !holidays.some(h => h.date === r.date));
+
+    const relevantRecords = nonHolidayRecords.filter(r => r.statuses && r.statuses[studentId]);
     const totalClasses = relevantRecords.length;
     const presences = relevantRecords.filter(r => r.statuses?.[studentId] === 'presente').length;
     const justified = relevantRecords.filter(r => r.statuses?.[studentId] === 'justificado').length;
@@ -165,6 +169,67 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
     XLSX.writeFile(workbook, `Frequencia_${selectedClass.courseName.replace(/\s+/g, '_')}_${selectedClass.year}.xlsx`);
   };
 
+  const handleExportGroupExcel = (group: { year: number, semester: string, items: Class[] }) => {
+    const data: any[] = [];
+
+    // Header Row
+    data.push(['Curso', 'Horário', 'Dias', 'Aluno', 'Status do Aluno', 'Aulas Dadas', 'Presenças', 'Faltas', 'Justificativas', '% Frequência']);
+
+    group.items.forEach(cls => {
+      const classStudents = students.filter(s =>
+        (cls.studentIds || []).includes(s.id) ||
+        (s.enrolledClassIds || []).includes(cls.id)
+      ).sort((a, b) => {
+        if (a.status === 'desistiu' && b.status !== 'desistiu') return 1;
+        if (a.status !== 'desistiu' && b.status === 'desistiu') return -1;
+        return a.name.localeCompare(b.name);
+      });
+
+      classStudents.forEach(s => {
+        const stats = calculateStats(s.id, cls.id);
+        data.push([
+          cls.courseName,
+          cls.time || '--:--',
+          cls.days.join(', '),
+          s.name,
+          s.status.toUpperCase(),
+          stats.totalClasses,
+          stats.presences,
+          stats.absences,
+          stats.justified,
+          stats.percentage.toFixed(0) + '%'
+        ]);
+      });
+      // Blank row for grouping
+      data.push([]);
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      [`RELATÓRIO CONSOLIDADO DE FREQUÊNCIA - ${group.semester.toUpperCase()} / ${group.year}`],
+      [`Data de Geração: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`],
+      [],
+      ...data
+    ]);
+
+    const wscols = [
+      { wch: 25 }, // Curso
+      { wch: 10 }, // Horário
+      { wch: 20 }, // Dias
+      { wch: 35 }, // Aluno
+      { wch: 15 }, // Status
+      { wch: 12 }, // Aulas
+      { wch: 12 }, // P
+      { wch: 12 }, // F
+      { wch: 12 }, // J
+      { wch: 15 }  // %
+    ];
+    worksheet['!cols'] = wscols;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Resumo Geral");
+    XLSX.writeFile(workbook, `Consolidado_${group.year}_${group.semester.replace(/\s+/g, '_')}.xlsx`);
+  };
+
   const filteredClasses = classes.filter(c => {
     const classStudentsCount = students.filter(s =>
       (c.studentIds || []).includes(s.id) ||
@@ -226,13 +291,22 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
             <div className="space-y-16">
               {sortedGroups.map((group: any) => (
                 <div key={`${group.year}-${group.semester}`} className="animate-in fade-in slide-in-from-left-4 duration-500">
-                  <div className="flex items-center gap-4 mb-8">
-                    <div className="h-px w-8 bg-indigo-200"></div>
-                    <h3 className="text-base font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
-                      <i className="fas fa-calendar-check text-indigo-500"></i>
-                      {group.year} • {group.semester}
-                    </h3>
-                    <div className="h-px flex-1 bg-gradient-to-r from-indigo-100 to-transparent"></div>
+                  <div className="flex items-center justify-between gap-4 mb-8">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="h-px w-8 bg-indigo-200"></div>
+                      <h3 className="text-base font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                        <i className="fas fa-calendar-check text-indigo-500"></i>
+                        {group.year} • {group.semester}
+                      </h3>
+                      <div className="h-px flex-1 bg-gradient-to-r from-indigo-100 to-transparent"></div>
+                    </div>
+                    <button
+                      onClick={() => handleExportGroupExcel(group)}
+                      className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all border border-indigo-100/50 shadow-sm"
+                    >
+                      <i className="fas fa-file-export"></i>
+                      Exportar Consolidado
+                    </button>
                   </div>
 
                   <div className="flex flex-col gap-3">
@@ -357,10 +431,20 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
               </button>
               <div>
                 <span className="block text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-0.5">Análise de Turma</span>
-                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tighter leading-none">{selectedClass?.courseName}</h2>
-                <span className="text-[8px] font-black text-gray-400 uppercase mt-0.5 inline-block bg-gray-100 px-1.5 py-0.5 rounded-md">
-                  {selectedClass?.year} • {selectedClass?.semester}
-                </span>
+                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tighter leading-none mb-1">{selectedClass?.courseName}</h2>
+                <div className="flex flex-wrap items-center gap-3 mt-2">
+                  <span className="text-[11px] font-black text-gray-500 uppercase bg-gray-100 px-3 py-1 rounded-lg">
+                    {selectedClass?.year} • {selectedClass?.semester}
+                  </span>
+                  <span className="text-[11px] font-black text-indigo-600 uppercase bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">
+                    <i className="fas fa-calendar-day mr-2 opacity-70"></i>
+                    {selectedClass?.days.join(' • ')}
+                  </span>
+                  <span className="text-[11px] font-black text-emerald-700 uppercase bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">
+                    <i className="fas fa-clock mr-2 opacity-70"></i>
+                    {selectedClass?.time || '--:--'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -502,8 +586,10 @@ const Reports: React.FC<ReportsProps> = ({ students, setStudents, classes, setCl
                       <span className="text-sm font-black text-gray-800 uppercase">{selectedClass?.courseName}</span>
                     </div>
                     <div className="border-b-2 border-gray-300 pb-2">
-                      <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Turma / Ano</span>
-                      <span className="text-sm font-black text-gray-800 uppercase">{selectedClass?.year} • {selectedClass?.semester}</span>
+                      <span className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Turma / Período / Horário</span>
+                      <span className="text-sm font-black text-gray-800 uppercase">
+                        {selectedClass?.year} • {selectedClass?.semester} • {selectedClass?.days.join(', ')} • {selectedClass?.time}
+                      </span>
                     </div>
                   </div>
                 </div>
