@@ -2,14 +2,14 @@ name: Manter Supabase Ativo
 
 on:
   schedule:
-    - cron: '0 0 */3 * *' # Executa automaticamente a cada 3 dias às 00:00 UTC
-  workflow_dispatch: # Permite que você ative o teste manualmente quando quiser
+    - cron: '0 0 */3 * *' # Executa a cada 3 dias
+  workflow_dispatch: # Permite rodar manualmente
 
 jobs:
   ping_supabase:
     runs-on: ubuntu-latest
     steps:
-      - name: Disparar requisicao externa
+      - name: Forçar Consulta Real no Banco
         run: |
           curl -i -X GET "https://supabase.co" \
           -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
